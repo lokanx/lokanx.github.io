@@ -10,5 +10,5 @@ jobs:
          - name: Deploy
            uses: kamranahmedse/github-pages-blog-action@v0.0.10
            with:
-              branch: main # Optional branch for GitHub Pages
+              branch: gh-pages # Optional branch for GitHub Pages
 
