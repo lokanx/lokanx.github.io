@@ -8,6 +8,10 @@
       "github": "lokanx",
       "twitter": "lokanx"
    },
+   "newsletter": {
+      "showTwitterBanner": true,
+      "currentCount": "2,000"
+   },
    "seo": {
       "title": "Björn Sjögren",
       "description": "Blog",
