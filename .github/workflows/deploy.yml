@@ -1,5 +1,8 @@
 name: Build and Deploy
-on: [push]
+on:
+   push:
+      branches:
+         - main # or master before October 2020
 jobs:
    build-and-deploy:
       runs-on: ubuntu-latest
@@ -7,8 +10,14 @@ jobs:
          - name: Checkout
            uses: actions/checkout@v3
 
-         - name: Deploy
-           uses: kamranahmedse/github-pages-blog-action@v0.0.10
+         - name: Magic
+           uses: actions/cache@v2
            with:
-              branch: gh-pages # Optional branch for GitHub Pages
-
+              path: vendor/bundle
+              key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile') }}
+              restore-keys: |
+                 ${{ runner.os }}-gems-
+         - name: Deploy
+           uses: helaili/jekyll-action@2.0.5 # Choose any one of the Jekyll Actions
+           with: # Some relative inputs of your action
+              token: ${{ secrets.GITHUB_TOKEN }}
