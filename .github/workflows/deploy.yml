@@ -10,7 +10,7 @@ jobs:
          - name: Checkout
            uses: actions/checkout@v3
 
-         - name: Magic
+         - name: Cache
            uses: actions/cache@v2
            with:
               path: vendor/bundle
