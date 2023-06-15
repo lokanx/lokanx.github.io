@@ -3,6 +3,7 @@ layout: post
 title: "The very first blog post"
 date: 2023-06-15 23:32:13 +0200
 categories: test
+tags: test example
 ---
 
 Testing...
