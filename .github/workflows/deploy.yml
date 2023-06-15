@@ -21,4 +21,6 @@ jobs:
          - name: Deploy
            uses: jeffreytse/jekyll-deploy-action@v0.4.0
            with:
+              provider: "github"
+              token: ${{ secrets.GITHUB_TOKEN }}
               branch: "gh-pages"
