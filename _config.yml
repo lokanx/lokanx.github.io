@@ -28,9 +28,13 @@ twitter_username: lokanx
 github_username: lokanx
 
 # Build settings
-theme: minima
+#theme: minima
+theme: minimal-mistakes-jekyll
 plugins:
    - jekyll-feed
+   - jekyll-include-cache
+
+include: ["_pages"]
 # Exclude from processing.
 # The following items will not be processed, by default.
 # Any item listed under the `exclude:` key here will be automatically added to
