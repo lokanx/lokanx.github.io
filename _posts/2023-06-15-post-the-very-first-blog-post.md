@@ -1,9 +1,14 @@
 ---
-layout: post
 title: "The very first blog post"
-date: 2023-06-15 23:32:13 +0200
-categories: test
-tags: test example
+date: 2023-06-15T23:32:13+0200
+last_modified_at: 2023-06-16T17:30:00+02:00
+layout: single
+categories:
+   - test
+tags:
+   - test
+   - example
+toc: true
 ---
 
 Testing...
