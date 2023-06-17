@@ -14,14 +14,47 @@ permalink: /apps/spelling/
       height: 100%
       left: 0;
       right: 0;
-      top: 100px;
+      top: 88px;
       bottom: 0;
    "
 ></iframe>
 <script>
-   window.onload = function () {
+   let delayHandle = null;
+   const handleResize = (reload = false) => {
+      const windowHeight = window.innerHeight; //Math.min(document.body.scrollHeight, window.innerHeight);
+      console.log("onResize:", document.body.scrollHeight);
+      const headerHeight =
+         document.getElementsByClassName("masthead")[0].clientHeight;
+      const footerHeight = document.getElementById("footer").clientHeight;
       var iframe = document.getElementById("contentFrameId");
-      //iframe.width = iframe.contentWindow.document.body.scrollWidth;
-      iframe.height = document.body.scrollHeight - 250;
+      const height = windowHeight - headerHeight - footerHeight;
+      console.log(iframe.height, "-->", height);
+      iframe.height = height;
+      if (reload) {
+         iframe.src = iframe.src;
+      }
    };
+
+   const onResize = () => {
+      handleResize();
+   };
+
+   const onResizeDelayed = () => {
+      if (delayHandle) {
+         clearTimeout(delayHandle);
+         delayHandle = null;
+      }
+
+      delayHandle = setTimeout(() => handleResize(true), 0);
+   };
+
+   const onUnload = () => {
+      window.removeEventListener("load", onResize);
+      window.removeEventListener("resize", onResizeDelayed);
+      window.removeEventListener("beforeunload", onUnload);
+   };
+
+   window.addEventListener("load", onResize);
+   window.addEventListener("resize", onResizeDelayed);
+   window.addEventListener("beforeunload", onUnload);
 </script>
