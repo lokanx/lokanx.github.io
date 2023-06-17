@@ -27,6 +27,7 @@ permalink: /apps/spelling/
          document.getElementsByClassName("masthead")[0].clientHeight;
       const footerHeight = document.getElementById("footer").clientHeight;
       var iframe = document.getElementById("contentFrameId");
+      iframe.style["top"] = `${headerHeight}px`;
       const height = windowHeight - headerHeight - footerHeight;
       console.log(iframe.height, "-->", height);
       iframe.height = height;
