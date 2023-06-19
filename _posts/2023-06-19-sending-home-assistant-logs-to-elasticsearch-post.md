@@ -6,10 +6,11 @@ layout: single
 categories:
    - "Home Assistant"
 tags:
-   - rest
-   - "Home Aassistant"
-   - pyscript
-   - python
+   - "Home Assistant"
+   - ELK
+   - elasticsearch
+   - kibana
+   - logstash
 toc: true
 ---
 

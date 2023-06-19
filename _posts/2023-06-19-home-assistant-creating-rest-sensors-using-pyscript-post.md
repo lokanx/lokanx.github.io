@@ -7,7 +7,7 @@ categories:
    - "Home Assistant"
 tags:
    - rest
-   - "Home Aassistant"
+   - "Home Assistant"
    - pyscript
    - python
 toc: true
