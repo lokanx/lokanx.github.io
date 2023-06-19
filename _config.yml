@@ -67,7 +67,8 @@ footer:
         icon: "fab fa-fw fa-linkedin"
         url: https://www.linkedin.com/in/sjogrenbjorn
 
-search_full_content: # true, false (default)
+search: true
+search_full_content: true # true, false (default)
 search_provider: # lunr (default), algolia, google
 lunr:
-   search_within_pages: # true, false (default)
+   search_within_pages: false #true, false (default)
