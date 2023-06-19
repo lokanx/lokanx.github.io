@@ -33,6 +33,7 @@ theme: minimal-mistakes-jekyll
 plugins:
    - jekyll-feed
    - jekyll-include-cache
+   - jemoji
 
 include: ["_pages"]
 # Exclude from processing.
