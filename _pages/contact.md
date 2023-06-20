@@ -1,7 +1,8 @@
 ---
 title: Contact
 permalink: /contact/
-layout: default
+layout: single
+author_profile: true
 ---
 
-Contact...
+&#8592; To the left :smile:

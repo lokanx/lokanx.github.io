@@ -12,6 +12,7 @@ tags:
    - kibana
    - logstash
 toc: false
+author_profile: true
 ---
 
 Do you want a better overview of you [Home Assiatant](https://www.home-assistant.io) logs? Do you want the home assistant logs to be searchable over time? Then you can export then to [Elasticsearch and use Kibana](https://www.elastic.co/elastic-stack) for query the log data.
