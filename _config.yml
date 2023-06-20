@@ -31,7 +31,21 @@ github_username: lokanx
 # Build settings
 #theme: minima
 theme: minimal-mistakes-jekyll
+
+# Plugins (previously gems:)
 plugins:
+   - jekyll-paginate
+   - jekyll-sitemap
+   - jekyll-gist
+   - jekyll-feed
+   - jekyll-include-cache
+   - jemoji
+
+# mimic GitHub Pages with --safe
+whitelist:
+   - jekyll-paginate
+   - jekyll-sitemap
+   - jekyll-gist
    - jekyll-feed
    - jekyll-include-cache
    - jemoji
@@ -99,3 +113,9 @@ author:
       - label: "LinkedIn"
         icon: "fab fa-fw fa-linkedin"
         url: https://www.linkedin.com/in/sjogrenbjorn
+
+defaults:
+   - scope:
+        path: "assets/*"
+     values:
+        sitemap: false

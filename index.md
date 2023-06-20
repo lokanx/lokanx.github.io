@@ -4,4 +4,6 @@
 
 layout: home
 author_profile: true
+sitemap: false
+search: false
 ---
