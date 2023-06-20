@@ -12,6 +12,7 @@ tags:
    - python
 toc: false
 author_profile: true
+classes: wide
 ---
 
 Have you felt that the [RESTful Sensor](https://www.home-assistant.io/integrations/sensor.rest/) in [Home Assistant](https://www.home-assistant.io) is somewhat limited. Is the REST API behind some kind of login flow you need to complete to be able to do calls, or you want to combine data from several REST calls into one sensor. You could always create your own (custom) integration, but it is a bit cumbersome.

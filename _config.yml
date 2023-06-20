@@ -75,6 +75,13 @@ search_provider: # lunr (default), algolia, google
 lunr:
    search_within_pages: false #true, false (default)
 
+category_archive:
+   type: liquid
+   path: /categories/
+tag_archive:
+   type: liquid
+   path: /tags/
+
 # Site Author
 author:
    name: "Björn Sjögren"

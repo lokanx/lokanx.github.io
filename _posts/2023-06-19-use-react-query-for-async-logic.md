@@ -12,6 +12,7 @@ tags:
    - react-query
 toc: false
 author_profile: true
+classes: wide
 ---
 
 Using [@tanstack/react-query](https://www.npmjs.com/package/@tanstack/react-query) for REST calls performed by [axios](https://www.npmjs.com/package/axios) is a well known pattern. But you can use it for all kind of async logic. Here I will present how to use it with the browser speech synthesis API.
