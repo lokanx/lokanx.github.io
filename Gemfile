@@ -43,4 +43,4 @@ gem "jekyll-sitemap"
 gem "jekyll-gist"
 gem "jekyll-include-cache"
 gem "jekyll-algolia"
-gem 'jekyll-favicon'
+#gem 'jekyll-favicon'

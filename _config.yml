@@ -40,7 +40,7 @@ plugins:
    - jekyll-feed
    - jekyll-include-cache
    - jemoji
-   - jekyll-favicon
+#   - jekyll-favicon
 
 # mimic GitHub Pages with --safe
 whitelist:
@@ -50,7 +50,7 @@ whitelist:
    - jekyll-feed
    - jekyll-include-cache
    - jemoji
-   - jekyll-favicon
+#   - jekyll-favicon
 
 include: ["_pages"]
 # Exclude from processing.
@@ -121,6 +121,5 @@ defaults:
         path: "assets/*"
      values:
         sitemap: false
-
-favicon:
-   source: favicon.svg
+#favicon:
+#   source: favicon.svg
