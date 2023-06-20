@@ -36,10 +36,6 @@ permalink: /apps/spelling/
       }
    };
 
-   const onResize = () => {
-      handleResize();
-   };
-
    const onResizeDelayed = () => {
       if (delayHandle) {
          clearTimeout(delayHandle);
@@ -50,12 +46,12 @@ permalink: /apps/spelling/
    };
 
    const onUnload = () => {
-      window.removeEventListener("load", onResize);
+      window.removeEventListener("load", onResizeDelayed);
       window.removeEventListener("resize", onResizeDelayed);
       window.removeEventListener("beforeunload", onUnload);
    };
 
-   window.addEventListener("load", onResize);
+   window.addEventListener("load", onResizeDelayed);
    window.addEventListener("resize", onResizeDelayed);
    window.addEventListener("beforeunload", onUnload);
 </script>
