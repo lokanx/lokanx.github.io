@@ -4,14 +4,14 @@ date: 2023-06-19T18:25:00+0200
 last_modified_at: 2023-06-19T18:25:00+02:00
 layout: single
 categories:
-   - "Home Assistant"
+   - "home-assistant"
 tags:
-   - "Home Assistant"
+   - "home-assistant"
    - ELK
    - elasticsearch
    - kibana
    - logstash
-toc: true
+toc: false
 ---
 
 Do you want a better overview of you [Home Assiatant](https://www.home-assistant.io) logs? Do you want the home assistant logs to be searchable over time? Then you can export then to [Elasticsearch and use Kibana](https://www.elastic.co/elastic-stack) for query the log data.
