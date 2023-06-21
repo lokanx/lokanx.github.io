@@ -11,7 +11,7 @@
       </div>
    {% else %}
       {% if lang == site.default_lang %}
-         <a href=" /"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px">
+         <a href=" /"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px" onClick="window.location.href='/';return false;">
             <img
                src="/assets/images/lang/{{ lang }}.svg"
                alt="{{ lang }}"
@@ -19,7 +19,7 @@
             />
          </a>
       {% else %}
-         <a href=" /{{ lang }}"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px">
+         <a href=" /{{ lang }}/"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px">
             <img
                src="/assets/images/lang/{{ lang }}.svg"
                alt="{{ lang }}"
