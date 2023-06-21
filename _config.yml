@@ -20,7 +20,7 @@
 
 minimal_mistakes_skin: "default" # "air", "aqua", "contrast", "dark", "dirt", "neon", "mint", "plum", "sunrise"
 title: "A developers thoughts..."
-email: john.doe@example.com
+email: info@lokan.net
 description: >- # this means to ignore newlines until "baseurl:"
    ...
 baseurl: "" # the subpath of your site, e.g. /blog
