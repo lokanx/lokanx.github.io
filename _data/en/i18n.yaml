@@ -1,0 +1,10 @@
+main:
+   title: "A developers thoughts..."
+
+author:
+  location: "Stockholm/Sweden"
+  bio: "The [Sporty / Home Automation / Developer] guy"
+
+layout:
+  home:
+    recent_posts: "Recent Posts"

@@ -1,0 +1,10 @@
+main:
+   title: "En utvecklares tankar..."
+
+author:
+  location: "Stockholm/Sverige"
+  bio: "Den [Sportiga / Hemautomatiserings / Utvecklar] killen"
+
+layout:
+  home:
+    recent_posts: "Nya Inlägg"
