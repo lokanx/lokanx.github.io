@@ -3,6 +3,7 @@ title: "Using react-query for all kind of async logic"
 date: 2023-06-19T22:00:00+0200
 last_modified_at: 2023-06-19T22:00:00+02:00
 layout: single
+lang: en
 categories:
    - frontend
 tags:

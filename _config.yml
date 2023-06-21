@@ -40,6 +40,7 @@ plugins:
    - jekyll-feed
    - jekyll-include-cache
    - jemoji
+   - jekyll-polyglot
 #   - jekyll-favicon
 
 # mimic GitHub Pages with --safe
@@ -50,6 +51,7 @@ whitelist:
    - jekyll-feed
    - jekyll-include-cache
    - jemoji
+   - jekyll-polyglot
 #   - jekyll-favicon
 
 include: ["_pages"]
@@ -123,3 +125,11 @@ defaults:
         sitemap: false
 #favicon:
 #   source: favicon.svg
+
+languages: ["en", "sv"]
+default_lang: "en"
+exclude_from_localization: ["assets/css", "assets/img"]
+parallel_localization: true
+
+sass:
+   sourcemap: never

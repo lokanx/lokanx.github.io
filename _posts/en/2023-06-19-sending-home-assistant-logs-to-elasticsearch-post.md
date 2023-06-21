@@ -2,7 +2,8 @@
 title: "Sending Home Assistant logs to Elasticsearch (ELK)"
 date: 2023-06-19T18:25:00+0200
 last_modified_at: 2023-06-19T18:25:00+02:00
-#layout: single
+layout: single
+lang: en
 categories:
    - "home-assistant"
 tags:

@@ -1,0 +1,33 @@
+{% for lang in site.languages %}
+   <li class="masthead__menu-item">
+   {% if lang == site.active_lang %}
+      <div>
+         <img
+            src="/assets/images/lang/{{ lang }}.svg"
+            alt="{{ lang }}"
+            title="{{ lang }}"
+            style="width: 32px;max-width: 32px; margin-left: 2px; margin-right: 2px"
+         />
+      </div>
+   {% else %}
+      {% if lang == site.default_lang %}
+         <a href=" /"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px">
+            <img
+               src="/assets/images/lang/{{ lang }}.svg"
+               alt="{{ lang }}"
+               style="width: 32px; max-width: 32px;"
+            />
+         </a>
+      {% else %}
+         <a href=" /{{ lang }}"  title="{{ lang }}" style="margin-left: 2px; margin-right: 2px">
+            <img
+               src="/assets/images/lang/{{ lang }}.svg"
+               alt="{{ lang }}"
+               style="width: 32px; max-width: 32px"
+            />
+         </a>
+      {% endif %}
+
+   {% endif %}
+   </li>
+{% endfor %}

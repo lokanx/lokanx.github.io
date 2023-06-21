@@ -3,6 +3,7 @@ title: "Creating REST based sensors for Home Assistant using the custom pyscript
 date: 2023-06-19T17:30:00+0200
 last_modified_at: 2023-06-19T17:30:00+02:00
 layout: single
+lang: en
 categories:
    - "home-assistant"
 tags:
