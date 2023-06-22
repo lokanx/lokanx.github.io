@@ -7,3 +7,5 @@ author_profile: true
 sitemap: false
 search: false
 ---
+
+{%- include lang-select.html -%}
