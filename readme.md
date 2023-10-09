@@ -1,6 +1,6 @@
 Run locally
 
 ```
-# bundle imstall
+# bundle install
 # bundle exec jekyll serve --livereload --drafts
 ```
