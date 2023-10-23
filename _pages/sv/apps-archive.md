@@ -6,4 +6,5 @@ author_profile: true
 lang: sv
 ---
 
--  [Spelling](/apps/spelling)
+- [Rättstavning](/apps/spelling)
+- [Glosor](/apps/glossaries)

@@ -7,3 +7,4 @@ lang: en
 ---
 
 -  [Spelling](/apps/spelling)
+-  [Glossaries](/apps/glossaries)
