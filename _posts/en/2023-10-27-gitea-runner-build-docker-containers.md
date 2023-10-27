@@ -1,7 +1,7 @@
 ---
-date: 2023-10-27T15:00:00+0200
+date: 2023-10-27T14:30:00+0200
 title: "How to build docker containers using gitea runners"
-last_modified_at: 2023-10-27T15:00:00+0200
+last_modified_at: 2023-10-27T14:30:00+0200
 layout: single
 lang: en
 categories:
