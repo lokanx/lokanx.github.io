@@ -74,8 +74,8 @@ Anyway this is how I setup my runners
 4. Now you should have your first runner up and running, check in Gitea that it's actually popped up.
 5. Enable actions for all your git repositories that you want, it's a checkbox named actions under git repository basic settings. 
 
-Now lets create a CI/CD pipeline for your git repository. I assume you are cabable of creating the Dockerfile needed yourself.
-
+Now lets create a CI/CD pipeline for your git repository. I assume you are capable of creating the Dockerfile needed yourself.
+The example bellow I took from a project with node backend using the express framework.
 ```yaml
 #
 # .gitea/gitea-ci.yaml
@@ -126,3 +126,23 @@ jobs:
 So the build pipeline contains two steps, build and publish. The first step executes for all pushes to all branches, 
 the second step only for main branch. Pay attention to the second step runs on *cth-ubuntu-latest*. 
 Which is one of the custom LABELS we added for our runner.
+
+And here is a basic Dockerfile as reference.
+```
+#
+# Dockerfile
+#
+
+FROM node:alpine
+WORKDIR /usr/app
+RUN apk update && apk add libstdc++ && apk add build-base && apk add python3 && apk add bash && apk add git
+COPY package.json .
+COPY package-lock.json .
+COPY src/app/public public
+RUN npm ci
+COPY . .
+RUN npm run clean
+RUN npm run build
+
+CMD ["npm", "run", "prod"]
+```
