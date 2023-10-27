@@ -5,11 +5,13 @@ last_modified_at: 2023-10-09T18:50:00+0200
 layout: single
 lang: en
 categories:
-   - frontend
+   - docker
+   - ci/cd
 tags:
    - docker
    - docker-registry
    - webhooks
+   - ci/cd
 toc: false
 author_profile: true
 classes: wide
