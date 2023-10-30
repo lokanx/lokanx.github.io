@@ -43,5 +43,5 @@ gem "jekyll-sitemap", "~> 1.4.0"
 gem "jekyll-gist", "~> 1.5.0"
 gem "jekyll-include-cache", "~> 0.2.1"
 gem "jekyll-algolia", "~> 1.7.1"
-gem "jekyll-polyglot", "~> 1.6.0"
+gem "jekyll-polyglot", "~> 1.7.0"
 #gem 'jekyll-favicon'
