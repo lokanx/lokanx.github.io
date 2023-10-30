@@ -1,0 +1,766 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.2">Jekyll</generator><link href="https://www.lokan.net/sv/feed.xml" rel="self" type="application/atom+xml" /><link href="https://www.lokan.net/sv/" rel="alternate" type="text/html" /><updated>2023-10-30T13:46:31+00:00</updated><id>https://www.lokan.net/feed.xml</id><title type="html">A developers thoughts…</title><subtitle>...</subtitle><author><name>Björn Sjögren</name></author><entry xml:lang="en"><title type="html">How to build docker containers using gitea runners</title><link href="https://www.lokan.net/sv/ci/cd/docker/2023/10/27/gitea-runner-build-docker-containers.html" rel="alternate" type="text/html" title="How to build docker containers using gitea runners" /><published>2023-10-27T12:30:00+00:00</published><updated>2023-10-27T12:30:00+00:00</updated><id>https://www.lokan.net/ci/cd/docker/2023/10/27/gitea-runner-build-docker-containers</id><content type="html" xml:base="https://www.lokan.net/ci/cd/docker/2023/10/27/gitea-runner-build-docker-containers.html"><![CDATA[<p>Gitea has pretty recently introduced actions, which is basically CI/CD pipelines. 
+They work very match as <a href="https://docs.gitlab.com/ee/ci/">Gitlab Actions</a>. 
+In fact a Gitea CI/CD pipeline is almost fully compatible with a Gitlab pipeline except a few minor details and limitations.
+You can even use Gitlab actions in your Gitea CI/CD pipeline build steps.</p>
+
+<p>This article is about how to make your Gitea CI/CD pipeline build docker images.</p>
+
+<p>Start by setting up gitea, <a href="https://docs.gitea.com/next/installation/install-with-docker">installation with docker</a>.
+Don’t forget to enable actions in Gitea configuration file.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[actions]
+ENABLED=true
+</code></pre></div></div>
+<p>I also suggest you setup HTTPS with a valid certificate, you will run into problems else in your builds with 
+complains about insecure stuff. How to do that is out of scope for this blog post, but you can read more
+about it <a href="https://docs.gitea.com/administration/https-setup?_highlight=https">here</a>.</p>
+
+<p>After that it’s time to <a href="https://docs.gitea.com/next/usage/actions/quickstart">set up the runners</a>. 
+The documentation do not say anything about how to build different kind of artifacts. What you can build with a runner
+is defined by it’s LABELS. A label maps to a docker container performing the build step in the CI/CD pipeline. If you
+not specify any LABELS you get the default that can NOT build docker containers. To get that capability you can
+make use of the <a href="https://github.com/catthehacker/docker_images">catthehacker docker images Github project</a>.</p>
+
+<p>Anyway this is how I setup my runners</p>
+
+<ol>
+  <li>Create directory for your runners
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mkdir gitea-runners
+</code></pre></div>    </div>
+  </li>
+  <li>Then create a initial config file for the runner, binary could be downloaded <a href="https://dl.gitea.com/act_runner/">here</a>.
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./act_runner generate-config &gt; config1.yaml
+</code></pre></div>    </div>
+  </li>
+  <li>Now lets create a basic script file for fire up you runner docker container. 
+How to get the token is covered by the <a href="https://docs.gitea.com/next/usage/actions/quickstart">Gitea Action Quick start</a> guide.
+    <div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/sh </span>
+docker pull gitea/act_runner:latest
+docker stop nazgul-runner-1
+docker <span class="nb">rm </span>nazgul-runner-1
+docker run <span class="se">\</span>
+<span class="nt">--restart</span> always <span class="se">\</span>
+<span class="nt">-v</span> <span class="nv">$PWD</span>/config1.yaml:/config.yaml <span class="se">\</span>
+<span class="nt">-v</span> <span class="nv">$PWD</span>/data1:/data <span class="se">\</span>
+<span class="nt">-v</span> /var/run/docker.sock:/var/run/docker.sock:rw <span class="se">\</span>
+<span class="nt">-e</span> <span class="nv">CONFIG_FILE</span><span class="o">=</span>/config.yaml <span class="se">\</span>
+<span class="nt">-e</span> <span class="nv">GITEA_INSTANCE_URL</span><span class="o">=</span>https://&lt;gitea.mydomain.con&gt;/ <span class="se">\</span>
+<span class="nt">-e</span> <span class="nv">GITEA_RUNNER_REGISTRATION_TOKEN</span><span class="o">=</span>&lt;MyGiteaRunnerToken&gt; <span class="se">\</span>
+<span class="nt">-e</span> <span class="nv">GITEA_RUNNER_NAME</span><span class="o">=</span>gitea-runner-1 <span class="se">\</span>
+<span class="nt">-e</span> <span class="nv">GITEA_RUNNER_LABELS</span><span class="o">=</span>ubuntu-latest:docker://node:16-bullseye,ubuntu-22.04:docker://node:16-bullseye,ubuntu-20.04:docker://node:16-bullseye,ubuntu-18.04:docker://node:16-buster,cth-ubuntu-latest:docker://catthehacker/&gt;
+<span class="nt">--name</span> nazgul-runner-1 <span class="se">\</span>
+<span class="nt">-d</span> gitea/act_runner:latest <span class="se">\</span>
+<span class="nt">--privileged</span>
+</code></pre></div>    </div>
+  </li>
+  <li>Now you should have your first runner up and running, check in Gitea that it’s actually popped up.</li>
+  <li>Enable actions for all your git repositories that you want, it’s a checkbox named actions under git repository basic settings.</li>
+</ol>
+
+<p>Now lets create a CI/CD pipeline for your git repository. I assume you are capable of creating the Dockerfile needed yourself.
+The example bellow I took from a project with node backend using the express framework.</p>
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#</span>
+<span class="c1"># .gitea/gitea-ci.yaml</span>
+<span class="c1">#</span>
+
+<span class="na">name</span><span class="pi">:</span> <span class="s">Build And Test</span>
+<span class="na">run-name</span><span class="pi">:</span> <span class="s">$ is runs ci pipeline</span>
+<span class="na">on</span><span class="pi">:</span> <span class="pi">[</span> <span class="nv">push</span> <span class="pi">]</span>
+
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">build</span><span class="pi">:</span>
+    <span class="na">runs-on</span><span class="pi">:</span> <span class="s">ubuntu-latest</span>
+    <span class="na">steps</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">uses</span><span class="pi">:</span> <span class="s">https://github.com/actions/checkout@v4</span>
+      <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Use Node.js</span>
+        <span class="na">uses</span><span class="pi">:</span> <span class="s">https://github.com/actions/setup-node@v3</span>
+        <span class="na">with</span><span class="pi">:</span>
+          <span class="na">node-version</span><span class="pi">:</span> <span class="s1">'</span><span class="s">18.17'</span>
+      <span class="pi">-</span> <span class="na">run</span><span class="pi">:</span> <span class="s">npm ci</span>
+      <span class="pi">-</span> <span class="na">run</span><span class="pi">:</span> <span class="s">npm run lint</span>
+      <span class="pi">-</span> <span class="na">run</span><span class="pi">:</span> <span class="s">npm run test</span>
+      <span class="pi">-</span> <span class="na">run</span><span class="pi">:</span> <span class="s">npm run build:prod</span>
+        <span class="na">env</span><span class="pi">:</span>
+           <span class="na">NODE_OPTIONS</span><span class="pi">:</span> <span class="s">--max_old_space_size=4096</span>
+
+  <span class="na">publish</span><span class="pi">:</span>
+    <span class="na">runs-on</span><span class="pi">:</span> <span class="s">cth-ubuntu-latest</span>
+    <span class="na">needs</span><span class="pi">:</span> <span class="s">build</span>
+    <span class="na">if</span><span class="pi">:</span> <span class="s">gitea.ref == 'refs/heads/main'</span>
+    <span class="na">steps</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">uses</span><span class="pi">:</span> <span class="s">https://github.com/actions/checkout@v4</span>
+      <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Set up Docker Buildx</span>
+        <span class="na">uses</span><span class="pi">:</span> <span class="s">https://github.com/docker/setup-buildx-action@v3</span>
+        <span class="na">with</span><span class="pi">:</span>
+          <span class="na">config-inline</span><span class="pi">:</span> <span class="pi">|</span>
+            <span class="s">[registry."&lt;my-private-unsecure-git-repository-ip-address&gt;:5000"]</span>
+              <span class="s">http = true</span>
+              <span class="s">insecure = true            </span>
+      <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Build and push Docker image</span>
+        <span class="na">uses</span><span class="pi">:</span> <span class="s">https://github.com/docker/build-push-action@v5</span>
+        <span class="na">with</span><span class="pi">:</span>
+          <span class="na">context</span><span class="pi">:</span> <span class="s">.</span>
+          <span class="na">file</span><span class="pi">:</span> <span class="s">./Dockerfile</span>
+          <span class="na">push</span><span class="pi">:</span> <span class="kc">true</span>
+          <span class="na">tags</span><span class="pi">:</span> <span class="s2">"</span><span class="s">&lt;my-private-unsecure-git-repository-ip-address&gt;:5000/&lt;my-docker-image&gt;:$,&lt;my-private-unsecure-git-repository-ip-address&gt;:5000/&lt;my-docker-image&gt;:latest"</span>
+</code></pre></div></div>
+
+<p>So the build pipeline contains two steps, build and publish. The first step executes for all pushes to all branches, 
+the second step only for main branch. Pay attention to the second step runs on <em>cth-ubuntu-latest</em>. 
+Which is one of the custom LABELS we added for our runner.</p>
+
+<p>And here is a basic Dockerfile as reference.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#
+# Dockerfile
+#
+
+FROM node:alpine
+WORKDIR /usr/app
+RUN apk update &amp;&amp; apk add libstdc++ &amp;&amp; apk add build-base &amp;&amp; apk add python3 &amp;&amp; apk add bash &amp;&amp; apk add git
+COPY package.json .
+COPY package-lock.json .
+COPY src/app/public public
+RUN npm ci
+COPY . .
+RUN npm run clean
+RUN npm run build
+
+CMD ["npm", "run", "prod"]
+</code></pre></div></div>]]></content><author><name>Björn Sjögren</name></author><category term="ci/cd" /><category term="docker" /><category term="docker" /><category term="docker-registry" /><category term="gitea" /><category term="ci/cd" /><summary type="html"><![CDATA[Gitea has pretty recently introduced actions, which is basically CI/CD pipelines. They work very match as Gitlab Actions. In fact a Gitea CI/CD pipeline is almost fully compatible with a Gitlab pipeline except a few minor details and limitations. You can even use Gitlab actions in your Gitea CI/CD pipeline build steps.]]></summary></entry><entry xml:lang="en"><title type="html">Using webhooks to trigger actions when a docker image are pushed to a private docker registry</title><link href="https://www.lokan.net/sv/docker/ci/cd/2023/10/09/trigger-action-when-continer-pushed.html" rel="alternate" type="text/html" title="Using webhooks to trigger actions when a docker image are pushed to a private docker registry" /><published>2023-10-09T16:50:00+00:00</published><updated>2023-10-09T16:50:00+00:00</updated><id>https://www.lokan.net/docker/ci/cd/2023/10/09/trigger-action-when-continer-pushed</id><content type="html" xml:base="https://www.lokan.net/docker/ci/cd/2023/10/09/trigger-action-when-continer-pushed.html"><![CDATA[<p>Start by setting up your own docker registry. Here is a little shell script doing it for you</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#/bin/sh</span>
+
+docker pull registry:2
+docker stop registry
+docker <span class="nb">rm </span>registry
+
+docker run <span class="nt">-d</span> <span class="se">\</span>
+  <span class="nt">-p</span> 5000:5000 <span class="se">\</span>
+  <span class="nt">--restart</span><span class="o">=</span>always <span class="se">\</span>
+  <span class="nt">--name</span> registry <span class="se">\</span>
+  <span class="nt">-v</span> ./registry:/var/lib/registry <span class="se">\</span>
+  <span class="nt">-v</span> ./config.yml:/etc/docker/registry/config.yml <span class="se">\</span>
+  registry:2
+</code></pre></div></div>
+<p>As you can see we are mounting a directory for the registry and a config file. Lets dig into the config file</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">version</span><span class="pi">:</span> <span class="m">0.1</span>
+<span class="na">log</span><span class="pi">:</span>
+  <span class="na">fields</span><span class="pi">:</span>
+    <span class="na">service</span><span class="pi">:</span> <span class="s">registry</span>
+<span class="na">storage</span><span class="pi">:</span>
+  <span class="na">cache</span><span class="pi">:</span>
+    <span class="na">blobdescriptor</span><span class="pi">:</span> <span class="s">inmemory</span>
+  <span class="na">filesystem</span><span class="pi">:</span>
+    <span class="na">rootdirectory</span><span class="pi">:</span> <span class="s">/var/lib/registry</span>
+<span class="na">http</span><span class="pi">:</span>
+  <span class="na">addr</span><span class="pi">:</span> <span class="s">:5000</span>
+  <span class="na">headers</span><span class="pi">:</span>
+    <span class="na">X-Content-Type-Options</span><span class="pi">:</span> <span class="pi">[</span><span class="nv">nosniff</span><span class="pi">]</span>
+<span class="na">health</span><span class="pi">:</span>
+  <span class="na">storagedriver</span><span class="pi">:</span>
+    <span class="na">enabled</span><span class="pi">:</span> <span class="kc">true</span>
+    <span class="na">interval</span><span class="pi">:</span> <span class="s">10s</span>
+<span class="na">notifications</span><span class="pi">:</span>
+  <span class="na">endpoints</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">alistener</span>
+      <span class="na">url</span><span class="pi">:</span> <span class="s">http://localhost:9000/hooks/redeploy-webhook</span>
+      <span class="na">timeout</span><span class="pi">:</span> <span class="s">500ms</span>
+      <span class="na">threshold</span><span class="pi">:</span> <span class="m">5</span>
+      <span class="na">backoff</span><span class="pi">:</span> <span class="s">1s</span>
+</code></pre></div></div>
+<p>The secret to trigger something when you push to the registry is the notifications part in the end.</p>
+
+<p>So lets continue with setup a simple webhook on your machine. For that we are using, <a href="https://github.com/adnanh/webhook">webhook by Adnan Hajdarević</a>. 
+There are several ways of install the software on your machine, I recommend docker or apt depending on your use case.</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>webhook
+</code></pre></div></div>
+
+<p>Now lets continue configure webhook software. Create a directory for it</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">mkdir</span> /etc/webhook
+</code></pre></div></div>
+
+<p>Create a file named hooks.json and a directory named hooks and a file named git-redeploy.sh</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">touch</span> /etc/webhook/hooks.json
+<span class="nb">mkdir</span> /etc/webhook/hooks
+<span class="nb">touch</span> /etc/webhook/hooks/git-redeploy.sh
+</code></pre></div></div>
+<p>Add the following content to the hooks.json file, don’t forget change the names and number of the docker images you 
+ant to perform some actions when a new image are pushed.</p>
+
+<p><strong>hooks.json</strong></p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="w">
+  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"redeploy-webhook"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"execute-command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/etc/webhook/hooks/git-redeploy.sh"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"command-working-directory"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/etc/webhook/hooks"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"pass-arguments-to-command"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payload"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"events.0.target.repository"</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="p">],</span><span class="w">
+    </span><span class="nl">"trigger-rule"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"and"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"match"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value"</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"parameter"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+              </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payload"</span><span class="p">,</span><span class="w">
+              </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"events.0.action"</span><span class="w">
+            </span><span class="p">},</span><span class="w">
+            </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"push"</span><span class="w">
+          </span><span class="p">}</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"or"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+            </span><span class="p">{</span><span class="w">
+              </span><span class="nl">"match"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value"</span><span class="p">,</span><span class="w">
+                </span><span class="nl">"parameter"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                  </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payload"</span><span class="p">,</span><span class="w">
+                  </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"events.0.target.repository"</span><span class="w">
+                </span><span class="p">},</span><span class="w">
+                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-docker-image-1"</span><span class="w">
+              </span><span class="p">}</span><span class="w">
+            </span><span class="p">},</span><span class="w">
+            </span><span class="p">{</span><span class="w">
+              </span><span class="nl">"match"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value"</span><span class="p">,</span><span class="w">
+                </span><span class="nl">"parameter"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                  </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payload"</span><span class="p">,</span><span class="w">
+                  </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"events.0.target.repository"</span><span class="w">
+                </span><span class="p">},</span><span class="w">
+                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-docker-image-1"</span><span class="w">
+              </span><span class="p">}</span><span class="w">
+            </span><span class="p">}</span><span class="w">
+          </span><span class="p">]</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"match"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value"</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"parameter"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+              </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payload"</span><span class="p">,</span><span class="w">
+              </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"events.0.target.tag"</span><span class="w">
+            </span><span class="p">},</span><span class="w">
+            </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"latest"</span><span class="w">
+          </span><span class="p">}</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">]</span><span class="w">
+</span></code></pre></div></div>
+<p><strong>git-redeploy.sh</strong></p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/sh</span>
+
+<span class="nv">git_repository</span><span class="o">=</span><span class="nv">$1</span>
+
+
+<span class="nb">echo</span> <span class="s2">"Redeploying </span><span class="nv">$git_repository</span><span class="s2"> container..."</span>
+<span class="nb">cd</span> /home/admin/docker
+<span class="nb">echo</span> <span class="nt">-n</span> <span class="s2">"Current working directory: "</span>
+<span class="nb">echo</span> <span class="sb">`</span><span class="nb">pwd</span><span class="sb">`</span>
+<span class="nb">echo</span> <span class="s2">""</span>
+<span class="k">if</span> <span class="o">[[</span> <span class="s2">"</span><span class="nv">$git_repository</span><span class="s2">"</span> <span class="o">=</span> <span class="s2">"my-docker-image-1"</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then
+  </span><span class="nb">echo</span> <span class="s2">"Redeploying my-docker-service-1..."</span>
+  docker pull localhost:5000/my-docker-image-1:latest
+  docker stop my-docker-service-1
+  docker <span class="nb">rm </span>my-docker-service-1
+  docker run  <span class="nt">--name</span> my-docker-service-1 localhost:5000/my-docker-image-1:latest
+  <span class="nb">echo</span> <span class="s2">"Redeploying </span><span class="nv">$git_repository</span><span class="s2"> container done!"</span>
+<span class="k">elif</span> <span class="o">[[</span> <span class="s2">"</span><span class="nv">$git_repository</span><span class="s2">"</span> <span class="o">=</span> <span class="s2">"my-docker-image-2"</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then
+  </span><span class="nb">echo</span> <span class="s2">"Redeploying my-docker-service-2..."</span>
+  docker pull localhost:5000/my-docker-image-2:latest
+  docker stop my-docker-service-2
+  docker <span class="nb">rm </span>my-docker-service-2
+  docker run  <span class="nt">--name</span> my-docker-service-2 localhost:5000/my-docker-image-2:latest
+  <span class="nb">echo</span> <span class="s2">"Redeploying </span><span class="nv">$git_repository</span><span class="s2"> container done!"</span>
+<span class="k">else
+  </span><span class="nb">echo</span> <span class="s2">""</span>                                           
+  <span class="nb">echo</span> <span class="s2">"ERROR: Redeploy of unknown repository  </span><span class="nv">$git_repository</span><span class="s2"> failed !!!"</span>
+  <span class="nb">exit</span> <span class="nt">-1</span>
+<span class="k">fi
+
+</span><span class="nb">exit </span>0
+</code></pre></div></div>
+<p>The webhook software could be executed as a service, how to achieve that depends heavily on your OS.
+This is an example for alpine linux.</p>
+
+<p><strong>/etc/init.d/webhook</strong></p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/sbin/openrc-run</span>
+
+<span class="nv">name</span><span class="o">=</span><span class="s2">"webhook"</span>
+<span class="nb">command</span><span class="o">=</span><span class="s2">"/usr/bin/webhook"</span>
+<span class="nv">command_args</span><span class="o">=</span><span class="s2">"-hooks /etc/webhook/hooks.json -verbose -logfile=/var/log/webhook.log tunnel run &amp;"</span>
+<span class="nv">pidfile</span><span class="o">=</span><span class="s2">"/var/run/webhook.pid"</span>
+
+depend<span class="o">()</span> <span class="o">{</span>
+        need net localmount
+        after firewall
+<span class="o">}</span>
+</code></pre></div></div>
+<p>Enable startup of service at boot time and then start it up</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Start service ay boot time</span>
+rc-update add webhook default
+
+<span class="c"># Start service</span>
+rc-service webhook start
+</code></pre></div></div>]]></content><author><name>Björn Sjögren</name></author><category term="docker" /><category term="ci/cd" /><category term="docker" /><category term="docker-registry" /><category term="webhooks" /><category term="ci/cd" /><summary type="html"><![CDATA[Start by setting up your own docker registry. Here is a little shell script doing it for you]]></summary></entry><entry xml:lang="en"><title type="html">Using react-query for all kind of async logic</title><link href="https://www.lokan.net/sv/frontend/2023/06/19/use-react-query-for-async-logic.html" rel="alternate" type="text/html" title="Using react-query for all kind of async logic" /><published>2023-06-19T20:00:00+00:00</published><updated>2023-10-30T12:40:00+00:00</updated><id>https://www.lokan.net/frontend/2023/06/19/use-react-query-for-async-logic</id><content type="html" xml:base="https://www.lokan.net/frontend/2023/06/19/use-react-query-for-async-logic.html"><![CDATA[<p>Using <a href="https://www.npmjs.com/package/@tanstack/react-query">@tanstack/react-query</a> for REST calls performed by <a href="https://www.npmjs.com/package/axios">axios</a> is a well known pattern. But you can use it for all kind of async logic. Here I will present how to use it with the browser speech synthesis API.</p>
+
+<p>To make it easier to use the browser speech synthesis API I use the <a href="https://www.npmjs.com/package/easy-speech">easy-speech</a> library that abstracts away some complexity and browser diffrences.</p>
+
+<p>First thing we need to do is to put the easy-speech speak method into use. Read the easy-speech documentation for how to init and use since this is out of scope for this blog post.</p>
+
+<p>SpeechService.ts</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nx">EasySpeech</span><span class="p">,</span> <span class="p">{</span> <span class="nx">SpeechSynthesisVoice</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">easy-speech</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">SpeakParams</span> <span class="p">{</span>
+   <span class="nl">text</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+   <span class="nl">voice</span><span class="p">:</span> <span class="nx">SpeechSynthesisVoice</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">const</span> <span class="nx">speak</span> <span class="o">=</span> <span class="p">({</span> <span class="nx">text</span><span class="p">,</span> <span class="nx">voice</span> <span class="p">}:</span> <span class="nx">SpeakParams</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="o">=&gt;</span> <span class="p">{</span>
+   <span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">'</span><span class="s1">About to say:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">text</span><span class="p">,</span> <span class="dl">'</span><span class="s1">, using voice:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">voice</span><span class="p">,</span> <span class="dl">'</span><span class="s1">of type</span><span class="dl">'</span><span class="p">,</span> <span class="k">typeof</span> <span class="nx">voice</span><span class="p">);</span>
+
+   <span class="k">return</span> <span class="k">new</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span><span class="p">((</span><span class="nx">resolve</span><span class="p">,</span> <span class="nx">reject</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nx">EasySpeech</span><span class="p">.</span><span class="nf">speak</span><span class="p">({</span>
+         <span class="na">text</span><span class="p">:</span> <span class="nx">text</span><span class="p">,</span>
+         <span class="nx">voice</span><span class="p">,</span>
+         <span class="na">pitch</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+         <span class="na">rate</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+         <span class="na">volume</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+         <span class="c1">// there are more events, see the API for supported events</span>
+         <span class="c1">//boundary: (e: any) =&gt; console.debug('boundary reached', e)</span>
+      <span class="p">})</span>
+         <span class="p">.</span><span class="nf">then</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nx">console</span><span class="p">.</span><span class="nf">debug</span><span class="p">(</span><span class="dl">'</span><span class="s1">Done saying:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">text</span><span class="p">,</span> <span class="dl">'</span><span class="s1">, using voice:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">voice</span><span class="p">);</span>
+            <span class="nf">resolve</span><span class="p">();</span>
+         <span class="p">})</span>
+         <span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="na">error</span><span class="p">:</span> <span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Failed saying:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">text</span><span class="p">,</span> <span class="dl">'</span><span class="s1">, using voice:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">voice</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+            <span class="nf">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span>
+         <span class="p">});</span>
+   <span class="p">});</span>
+<span class="p">};</span>
+
+<span class="p">...</span>
+
+<span class="kd">const</span> <span class="nx">SpeechService</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="nx">speak</span><span class="p">,</span>
+   <span class="p">...</span>
+<span class="p">};</span>
+
+<span class="k">export</span> <span class="k">default</span> <span class="nx">SpeechService</span><span class="p">;</span>
+
+</code></pre></div></div>
+
+<p>Now lets connect this async speak method with react-query</p>
+
+<p>useSpeak.ts</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">useMutation</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">@tanstack/react-query</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="nx">SpeechService</span><span class="p">,</span> <span class="p">{</span> <span class="nx">SpeakParams</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../services/SpeechService</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="kr">interface</span> <span class="nx">UseSpeakParams</span> <span class="p">{</span>
+    <span class="nl">onSuccess</span><span class="p">?:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">;</span>
+    <span class="nl">onError</span><span class="p">?:</span> <span class="p">(</span><span class="nx">error</span><span class="p">:</span> <span class="nb">Error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">const</span> <span class="nx">performSpeak</span> <span class="o">=</span> <span class="k">async </span><span class="p">(</span><span class="nx">params</span><span class="p">:</span> <span class="nx">SpeakParams</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="nx">SpeechService</span><span class="p">.</span><span class="nf">speak</span><span class="p">(</span><span class="nx">params</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="na">error</span><span class="p">:</span> <span class="kr">any</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="nx">error</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">};</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">useSpeak</span> <span class="o">=</span> <span class="p">({</span><span class="nx">onSuccess</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{},</span>
+                          <span class="nx">onError</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{},</span>
+                         <span class="p">}:</span> <span class="nx">UseSpeakParams</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">mutator</span> <span class="o">=</span> <span class="nf">useMutation</span><span class="p">({</span><span class="na">mutationFn</span><span class="p">:</span> <span class="nx">performSpeak</span><span class="p">,</span>
+        <span class="na">onSuccess</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">onSuccess</span><span class="p">();</span>
+        <span class="p">},</span>
+        <span class="na">onError</span><span class="p">:</span> <span class="p">(</span><span class="na">error</span><span class="p">:</span> <span class="nb">Error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">onError</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span>
+        <span class="p">},</span>
+        <span class="na">retry</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="p">});</span>
+
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="nx">mutator</span><span class="p">.</span><span class="nx">mutate</span><span class="p">,</span>
+        <span class="p">{</span> <span class="na">isSaving</span><span class="p">:</span> <span class="nx">mutator</span><span class="p">.</span><span class="nx">isPending</span><span class="p">,</span> <span class="p">...</span><span class="nx">mutator</span> <span class="p">},</span>
+    <span class="p">]</span> <span class="k">as</span> <span class="kd">const</span><span class="p">;</span>
+<span class="p">};</span>
+
+</code></pre></div></div>
+
+<p>And finally lets put the useSpeak hook into work in a react component.</p>
+
+<p>SayHelloComponent.tsx</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nx">React</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">react</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">useSpeak</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../hooks/useSpeak</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">SpeechSynthesisVoice</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">easy-speech</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="nx">Select</span><span class="p">,</span> <span class="p">{</span> <span class="nx">SingleValue</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">react-select</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">useVoices</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../hooks/useVoices</span><span class="dl">"</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">SpeechSynthesisVoiceData</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../services/SpeechService</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">SayHelloComponent</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+   <span class="kd">const</span> <span class="p">[</span><span class="nx">text</span><span class="p">,</span> <span class="nx">setText</span><span class="p">]</span> <span class="o">=</span> <span class="nx">React</span><span class="p">.</span><span class="nx">useState</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">"</span><span class="s2">Hi there! Are you ready?</span><span class="dl">"</span><span class="p">);</span>
+   <span class="kd">const</span> <span class="p">[</span><span class="nx">voiceData</span><span class="p">,</span> <span class="nx">setVoiceData</span><span class="p">]</span> <span class="o">=</span> <span class="nx">React</span><span class="p">.</span><span class="nx">useState</span><span class="o">&lt;</span>
+      <span class="nx">SpeechSynthesisVoiceData</span> <span class="o">|</span> <span class="kc">undefined</span>
+   <span class="o">&gt;</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="p">[</span><span class="nx">availableVoices</span><span class="p">,</span> <span class="p">{</span><span class="nx">isUseVoicesError</span><span class="p">,</span> <span class="nx">useVoicesError</span><span class="p">}]</span> <span class="o">=</span> <span class="nf">useVoices</span><span class="p">();</span>
+
+
+    <span class="kd">const</span> <span class="p">[</span><span class="nx">speak</span><span class="p">]</span> <span class="o">=</span> <span class="nf">useSpeak</span><span class="p">({</span>
+      <span class="na">onError</span><span class="p">:</span> <span class="p">(</span><span class="na">error</span><span class="p">:</span> <span class="nb">Error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+         <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">"</span><span class="s2">Failed speak:</span><span class="dl">"</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+      <span class="p">},</span>
+   <span class="p">});</span>
+
+   <span class="nx">React</span><span class="p">.</span><span class="nf">useEffect</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">isUseVoicesError</span> <span class="o">&amp;&amp;</span> <span class="nx">useVoicesError</span><span class="p">)</span> <span class="p">{</span>
+         <span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Failed detect voices</span><span class="dl">"</span><span class="p">,</span> <span class="nx">useVoicesError</span><span class="p">);</span>
+      <span class="p">}</span>
+   <span class="p">},</span> <span class="p">[</span><span class="nx">isUseVoicesError</span><span class="p">,</span> <span class="nx">useVoicesError</span><span class="p">]);</span>
+
+   <span class="kd">const</span> <span class="nx">speech</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">voiceData</span><span class="p">)</span> <span class="p">{</span>
+         <span class="nf">speak</span><span class="p">({</span> <span class="nx">text</span><span class="p">,</span> <span class="na">voice</span><span class="p">:</span> <span class="nx">voiceData</span><span class="p">.</span><span class="nx">voice</span> <span class="p">});</span>
+      <span class="p">}</span>
+   <span class="p">};</span>
+
+   <span class="k">return </span><span class="p">(</span>
+      <span class="o">&lt;</span><span class="nx">div</span> <span class="nx">style</span><span class="o">=&gt;</span>
+         <span class="o">&lt;</span><span class="nx">Select</span>
+            <span class="nx">id</span><span class="o">=</span><span class="dl">"</span><span class="s2">language</span><span class="dl">"</span>
+            <span class="nx">value</span><span class="o">=</span><span class="p">{</span><span class="nx">voiceData</span><span class="p">}</span>
+            <span class="nx">options</span><span class="o">=</span><span class="p">{</span><span class="nx">availableVoices</span> <span class="k">as</span> <span class="kr">any</span><span class="p">}</span>
+            <span class="nx">onChange</span><span class="o">=</span><span class="p">{(</span><span class="na">value</span><span class="p">:</span> <span class="nx">SingleValue</span><span class="o">&lt;</span><span class="nx">SpeechSynthesisVoiceData</span><span class="o">&gt;</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+               <span class="k">if </span><span class="p">(</span><span class="nx">value</span> <span class="o">&amp;&amp;</span> <span class="nx">value</span><span class="p">.</span><span class="nx">voice</span><span class="p">)</span> <span class="p">{</span>
+                  <span class="nf">setVoiceData</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+               <span class="p">}</span>
+            <span class="p">}}</span>
+         <span class="sr">/</span><span class="err">&gt;
+</span>         <span class="o">&lt;</span><span class="nx">input</span>
+            <span class="kd">type</span><span class="o">=</span><span class="dl">"</span><span class="s2">text</span><span class="dl">"</span>
+            <span class="nx">value</span><span class="o">=</span><span class="p">{</span><span class="nx">text</span><span class="p">}</span>
+            <span class="nx">style</span><span class="o">=</span>
+            <span class="nx">onChange</span><span class="o">=</span><span class="p">{(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+               <span class="nf">setText</span><span class="p">(</span><span class="nx">event</span><span class="p">?.</span><span class="nx">target</span><span class="p">?.</span><span class="nx">value</span> <span class="o">||</span> <span class="dl">""</span><span class="p">);</span>
+            <span class="p">}}</span>
+         <span class="o">&gt;&lt;</span><span class="sr">/input</span><span class="err">&gt;
+</span>         <span class="o">&lt;</span><span class="nx">button</span>
+            <span class="nx">style</span><span class="o">=</span>
+            <span class="nx">disabled</span><span class="o">=</span><span class="p">{</span>
+               <span class="o">!</span><span class="nx">voiceData</span> <span class="o">||</span> <span class="o">!</span><span class="nx">availableVoices</span> <span class="o">||</span> <span class="nx">availableVoices</span><span class="p">.</span><span class="nx">length</span> <span class="o">===</span> <span class="mi">0</span>
+            <span class="p">}</span>
+            <span class="nx">onClick</span><span class="o">=</span><span class="p">{()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+               <span class="nf">speech</span><span class="p">();</span>
+            <span class="p">}}</span>
+         <span class="o">&gt;</span>
+            <span class="nx">Speak</span>
+         <span class="o">&lt;</span><span class="sr">/button</span><span class="err">&gt;
+</span>      <span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span>   <span class="p">);</span>
+<span class="p">};</span>
+
+<span class="k">export</span> <span class="k">default</span> <span class="nx">SayHelloComponent</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>Source code this blog post is based on <a href="https://github.com/lokanx-playground/blog-react-query-example">could be found here</a>.</p>]]></content><author><name>Björn Sjögren</name></author><category term="frontend" /><category term="typescript" /><category term="frontend" /><category term="react" /><category term="react-query" /><summary type="html"><![CDATA[Using @tanstack/react-query for REST calls performed by axios is a well known pattern. But you can use it for all kind of async logic. Here I will present how to use it with the browser speech synthesis API.]]></summary></entry><entry xml:lang="en"><title type="html">Sending Home Assistant logs to Elasticsearch (ELK)</title><link href="https://www.lokan.net/sv/home-assistant/2023/06/19/sending-home-assistant-logs-to-elasticsearch-post.html" rel="alternate" type="text/html" title="Sending Home Assistant logs to Elasticsearch (ELK)" /><published>2023-06-19T16:25:00+00:00</published><updated>2023-06-19T16:25:00+00:00</updated><id>https://www.lokan.net/home-assistant/2023/06/19/sending-home-assistant-logs-to-elasticsearch-post</id><content type="html" xml:base="https://www.lokan.net/home-assistant/2023/06/19/sending-home-assistant-logs-to-elasticsearch-post.html"><![CDATA[<p>Do you want a better overview of you <a href="https://www.home-assistant.io">Home Assiatant</a> logs? Do you want the home assistant logs to be searchable over time? Then you can export then to <a href="https://www.elastic.co/elastic-stack">Elasticsearch and use Kibana</a> for query the log data.</p>
+
+<ol>
+  <li>
+    <p>First you need to have an installed ELK stack (Elasticsearch, Logstash and Kibana). I went for an installation using docker with help of <a href="https://github.com/deviantony/docker-elk">docker-elk</a> github project.</p>
+  </li>
+  <li>
+    <p>Second you have to install <a href="https://www.home-assistant.io">Home Assiatant</a> <a href="https://github.com/bertbaron/hassio-addons">Logspout add-on</a>.</p>
+  </li>
+  <li>
+    <p>Configure the logspout add-on</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">routes</span><span class="pi">:</span>
+   <span class="pi">-</span> <span class="s">multiline+logstash+tcp://mykibana.example.com:50000</span>
+<span class="na">env</span><span class="pi">:</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">SYSLOG_HOSTNAME</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">homeassistant</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">INACTIVITY_TIMEOUT</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">1m</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">MULTILINE_PATTERN</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="pi">&gt;-</span>
+        <span class="s">(\d\d(\d\d)?[-/]\d\d[-/]\d\d[T</span>
+        <span class="s">]\d\d:\d\d:\d\d)|(^s6-rc:)|(^\[\d\d:\d\d:\d\d\])|(\d\d:\d\d:\d\d\</span>
+        <span class="s">-)|(^[TDIWEF]:)</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">MULTILINE_MATCH</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">first</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">INCLUDE_CONTAINERS</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">homeassistant</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">LOGSTASH_FIELDS</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">source=my-home-assistant</span>
+</code></pre></div>    </div>
+
+    <p>Note that default all docker container logs in HAOS is sent to logstash for insertion into elasticsearch.</p>
+  </li>
+  <li>
+    <p>Configure logstash to parse the log data that comes in.
+My logstash.conf file looks like this:</p>
+
+    <div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="n">input</span> {
+   <span class="n">beats</span> {
+      <span class="n">port</span> =&gt; <span class="m">5044</span>
+   }
+
+   <span class="n">tcp</span> {
+      <span class="n">port</span> =&gt; <span class="m">50000</span>
+      <span class="n">codec</span> =&gt; <span class="n">json</span>
+   }
+
+   <span class="n">udp</span> {
+      <span class="n">port</span>  =&gt; <span class="m">5000</span>
+      <span class="n">codec</span> =&gt; <span class="n">json</span>
+   }
+}
+
+<span class="c">## Add your filters / logstash plugins configuration here
+</span><span class="n">filter</span> {
+      <span class="n">if</span> ([<span class="n">source</span>] == <span class="s2">"my-home-assistant"</span>) {
+         <span class="n">if</span> ([<span class="n">docker</span>][<span class="n">name</span>] == <span class="s2">"/homeassistant"</span>) {
+            <span class="n">grok</span> {
+               <span class="n">patterns_dir</span> =&gt; [<span class="s2">"/usr/share/logstash/pipeline/patterns"</span>]
+               <span class="n">match</span> =&gt; { <span class="s2">"message"</span> =&gt; <span class="s2">"%{LOGLEVEL:log_level}%{SPACE}\(%{GREEDYDATA:log_thread}\)%{SPACE}\[%{LOGGER_NAME:log_name}\]%{SPACE}%{GREEDYDATA:log_message}"</span> }
+            }
+            <span class="n">mutate</span> {
+      <span class="n">gsub</span> =&gt; [ <span class="s2">"log_message"</span>, <span class="s2">"\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|M|K]"</span>, <span class="s2">""</span> ]
+            }
+            <span class="n">if</span> [<span class="n">log_message</span>] =~ /\<span class="n">n</span>/ {
+               <span class="n">mutate</span> {
+                  <span class="n">copy</span> =&gt; { <span class="s2">"log_message"</span> =&gt; <span class="s2">"log_trace"</span> }
+               }
+               <span class="n">mutate</span> {
+                  <span class="n">gsub</span> =&gt; [ <span class="s2">"log_message"</span>, <span class="s2">"(?m)^([^\n]*)$.*"</span>, <span class="s2">"\1"</span> ]
+               }
+
+            }
+         } <span class="n">else</span> {
+            <span class="n">drop</span> { }
+         }
+      }
+}
+
+<span class="n">output</span> {
+   <span class="n">elasticsearch</span> {
+      <span class="n">hosts</span> =&gt; <span class="s2">"elasticsearch:9200"</span>
+      <span class="n">user</span> =&gt; <span class="s2">"logstash_internal"</span>
+      <span class="n">password</span> =&gt; <span class="s2">"${LOGSTASH_INTERNAL_PASSWORD}"</span>
+   }
+}
+</code></pre></div>    </div>
+
+    <p>and my custom patterns file looks like this:</p>
+
+    <div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">LOGGER_NAME</span> [<span class="n">a</span>-<span class="n">zA</span>-<span class="n">Z0</span>-<span class="m">9</span>.<span class="err">_</span>-]+
+<span class="n">UNICODE_START</span> [\\<span class="n">u</span>]
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>All incomming data tagged with <em>my-home-assistant</em> will be processed by the filter. It will also drop all data that comes from other than the HAOS home assistant docker container.</p>
+
+<p>If you want to properly process data from other docker containers in the HAOS install, you will have to write more <a href="https://www.elastic.co/guide/en/logstash/current/plugins-filters-grok.html">grok</a> patterns.</p>]]></content><author><name>Björn Sjögren</name></author><category term="home-assistant" /><category term="home-assistant" /><category term="ELK" /><category term="elasticsearch" /><category term="kibana" /><category term="logstash" /><summary type="html"><![CDATA[Do you want a better overview of you Home Assiatant logs? Do you want the home assistant logs to be searchable over time? Then you can export then to Elasticsearch and use Kibana for query the log data.]]></summary></entry><entry xml:lang="sv"><title type="html">Skapa en REST baserad sensor för Home Assistant med hjälp an pyscript integrationen</title><link href="https://www.lokan.net/sv/home-assistant/2023/06/19/home-assistant-creating-rest-sensors-using-pyscript-post.html" rel="alternate" type="text/html" title="Skapa en REST baserad sensor för Home Assistant med hjälp an pyscript integrationen" /><published>2023-06-19T15:30:00+00:00</published><updated>2023-06-19T15:30:00+00:00</updated><id>https://www.lokan.net/home-assistant/2023/06/19/home-assistant-creating-rest-sensors-using-pyscript-post</id><content type="html" xml:base="https://www.lokan.net/home-assistant/2023/06/19/home-assistant-creating-rest-sensors-using-pyscript-post.html"><![CDATA[<p>Har du känt att att <a href="https://www.home-assistant.io/integrations/sensor.rest/">RESTful Sensorn</a> i <a href="https://www.home-assistant.io">Home Assistant</a> inte räcker till. Är REST API bakom nån form av inloggningsflöde du behöver gå igenom innan du kan anropa API’et, eller du kanske vill kombinera data från flera REST anrop till en sensor. Du kan alltid skapa din egen kustomiserade integratiom, men det är rätt omstädnigt.</p>
+
+<p>Det finns en integration tillgänglig via <a href="https://hacs.xyz">HACS</a> som heter <a href="https://github.com/custom-components/pyscript">pyscript</a> som låter dig enkelt skapa sensorer och mycket mer.</p>
+
+<p>För att köra igång pyscript i din Home Assistant installation genom att följa instruktionen nedan:</p>
+
+<ol>
+  <li>Först installera <a href="https://hacs.xyz/">HACS</a> om du inte redan gjort det.</li>
+  <li>Hitta <a href="https://github.com/custom-components/pyscript">pyscript</a> integrationen i HACS och installera den.</li>
+  <li>Lägg till pyscript integration genom lägga till följande konfiguration
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">pyscript</span><span class="pi">:</span>
+<span class="na">allow_all_imports</span><span class="pi">:</span> <span class="kc">true</span>
+<span class="na">hass_is_global</span><span class="pi">:</span> <span class="kc">true</span>
+</code></pre></div>    </div>
+  </li>
+  <li>SKapa en katalog som heter pyscript i rooten av din home assistant konfigurationskatalog
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cd /path/to/home-assisant/config
+mkdir pyscript
+</code></pre></div>    </div>
+  </li>
+  <li>Starta om Home Assistant för att aktivera integrationen.</li>
+  <li>Skapa en fil för din REST sensor i <ha-config-dir>/pyscrupt/my-rest-sensor.py</ha-config-dir></li>
+  <li>Installera en riktig python kapabel editor, som Visual Studio Code (valfritt)</li>
+</ol>
+
+<p>Det finns många sätt konfigurera pyscript, men med exmplet ovan så kommer pyscript hitta alla python filer i katalogen. Varje gång en fil ändras så kommer integration automatiskt ladda om filen. Håll ett öga på home-assistant.log filen efter fel medans du kodar.</p>
+
+<p>Här är ett fullt exempel på en sensor som hämtar data från <a href="https://api.krisinformation.se/v3/">Svenska Krisinformations API Version 3</a> API. Sensorn är kompatibel med <a href="https://github.com/isabellaalstrom/krisinfo-card">krisinfo-card</a> kortet men använder senste versionen av API’et till skillnad från orginal integrationen.</p>
+
+<p>Koden definierar en service metod för manuel uppdatering av sensor informationen samt en skedulerad uppdatering som pollar efter nytt data var 30e minut. Som man kan se så är det ganska enkelt skapa sensorer eller service metoder jämfört med skapa en fullständigt egen integration. Pyscript låter dig fokusera på logiken.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">requests</span>
+<span class="kn">from</span> <span class="n">math</span> <span class="kn">import</span> <span class="n">radians</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">acos</span>
+
+<span class="n">URL</span> <span class="o">=</span> <span class="sh">"</span><span class="s">https://api.krisinformation.se/v3/news?days={days}&amp;counties={counties}</span><span class="sh">"</span>
+<span class="n">RADIUS</span> <span class="o">=</span> <span class="sh">"</span><span class="s">50</span><span class="sh">"</span>
+<span class="n">SLAT</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">'</span><span class="si">{</span><span class="n">hass</span><span class="p">.</span><span class="n">config</span><span class="p">.</span><span class="n">latitude</span><span class="si">}</span><span class="sh">'</span>
+<span class="n">SLON</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">'</span><span class="si">{</span><span class="n">hass</span><span class="p">.</span><span class="n">config</span><span class="p">.</span><span class="n">longitude</span><span class="si">}</span><span class="sh">'</span>
+<span class="n">DAYS</span> <span class="o">=</span> <span class="mi">7</span>
+<span class="n">COUNTY_GOTHENBURG</span> <span class="o">=</span> <span class="mi">14</span>
+
+<span class="k">def</span> <span class="nf">getUrl</span><span class="p">(</span><span class="n">days</span><span class="p">,</span> <span class="n">counties</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">URL</span><span class="p">.</span><span class="nf">format</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days</span><span class="p">,</span> <span class="n">counties</span><span class="o">=</span><span class="n">counties</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">fetchData</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">.</span><span class="nf">info</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Fetching data from: </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="nf">executor</span><span class="p">(</span><span class="n">requests</span><span class="p">.</span><span class="n">get</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">response</span><span class="p">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+        <span class="n">log</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Failure: </span><span class="si">{</span><span class="n">response</span><span class="p">.</span><span class="n">status_code</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="k">return</span> <span class="n">response</span><span class="p">.</span><span class="nf">json</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">make_object</span><span class="p">(</span><span class="n">attributes</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Area</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">distance</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">within_range</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">is_in_county</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">is_in_country</span> <span class="o">=</span> <span class="bp">False</span>
+
+    <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">area</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Area</span><span class="sh">'</span><span class="p">]):</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Area</span><span class="sh">'</span><span class="p">].</span><span class="nf">append</span><span class="p">({</span> <span class="sh">"</span><span class="s">Type</span><span class="sh">"</span> <span class="p">:</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Type</span><span class="sh">'</span><span class="p">],</span> <span class="sh">"</span><span class="s">Description</span><span class="sh">"</span> <span class="p">:</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Description</span><span class="sh">'</span><span class="p">],</span> <span class="sh">"</span><span class="s">Coordinate</span><span class="sh">"</span> <span class="p">:</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Coordinate</span><span class="sh">'</span><span class="p">]})</span>
+
+        <span class="k">if</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Type</span><span class="sh">'</span><span class="p">]</span> <span class="o">==</span> <span class="sh">'</span><span class="s">Country</span><span class="sh">'</span><span class="p">:</span>
+            <span class="n">is_in_country</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">if</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Type</span><span class="sh">'</span><span class="p">]</span> <span class="o">==</span> <span class="sh">'</span><span class="s">County</span><span class="sh">'</span><span class="p">:</span>
+            <span class="n">is_in_county</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="n">distance</span> <span class="o">=</span> <span class="nf">calculate_distance</span><span class="p">(</span><span class="n">coords</span> <span class="o">=</span> <span class="n">area</span><span class="p">[</span><span class="sh">'</span><span class="s">Coordinate</span><span class="sh">'</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nf">float</span><span class="p">(</span><span class="n">distance</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nf">float</span><span class="p">(</span><span class="n">RADIUS</span><span class="p">):</span>
+            <span class="n">within_range</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">if</span> <span class="n">within_range</span> <span class="ow">or</span> <span class="n">is_in_county</span> <span class="ow">or</span> <span class="n">is_in_country</span><span class="p">:</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">ID</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Identifier</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Message</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">PushMessage</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Updated</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Updated</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Published</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Published</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Headline</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Headline</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Preamble</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Preamble</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">BodyText</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">BodyText</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Web</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Web</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Language</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Language</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Event</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Event</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">SenderName</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">SenderName</span><span class="sh">'</span><span class="p">]</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Links</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">BodyLinks</span><span class="sh">'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">numbers</span><span class="p">,</span> <span class="n">link</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">BodyLinks</span><span class="sh">'</span><span class="p">]):</span>
+                <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">Links</span><span class="sh">'</span><span class="p">].</span><span class="nf">append</span><span class="p">(</span><span class="n">link</span><span class="p">[</span><span class="sh">'</span><span class="s">Url</span><span class="sh">'</span><span class="p">])</span>
+        <span class="n">message</span><span class="p">[</span><span class="sh">'</span><span class="s">SourceID</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">SourceID</span><span class="sh">'</span><span class="p">]</span>
+
+        <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">messages</span><span class="sh">"</span><span class="p">].</span><span class="nf">append</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">element</span><span class="p">[</span><span class="sh">'</span><span class="s">Event</span><span class="sh">'</span><span class="p">]</span> <span class="o">==</span> <span class="sh">"</span><span class="s">Alert</span><span class="sh">"</span><span class="p">:</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">alert_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">news_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">total_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">filtered_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">calculate_distance</span><span class="p">(</span><span class="n">coords</span><span class="p">):</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span><span class="p">.</span><span class="nf">split</span><span class="p">()</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nf">split</span><span class="p">(</span><span class="sh">'</span><span class="s">,</span><span class="sh">'</span><span class="p">)</span>
+    <span class="n">elon</span> <span class="o">=</span> <span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">elat</span> <span class="o">=</span> <span class="n">coords</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">#Convert coordinates to radians
+</span>    <span class="n">elat2</span> <span class="o">=</span> <span class="nf">radians</span><span class="p">(</span><span class="nf">float</span><span class="p">(</span><span class="n">elat</span><span class="p">))</span>
+    <span class="n">slat2</span> <span class="o">=</span> <span class="nf">radians</span><span class="p">(</span><span class="nf">float</span><span class="p">(</span><span class="n">SLAT</span><span class="p">))</span>
+    <span class="n">elon2</span> <span class="o">=</span> <span class="nf">radians</span><span class="p">(</span><span class="nf">float</span><span class="p">(</span><span class="n">elon</span><span class="p">))</span>
+    <span class="n">slon2</span> <span class="o">=</span> <span class="nf">radians</span><span class="p">(</span><span class="nf">float</span><span class="p">(</span><span class="n">SLON</span><span class="p">))</span>
+
+    <span class="c1">#Calculate the distance between them
+</span>    <span class="n">dist</span> <span class="o">=</span> <span class="mf">6371.01</span> <span class="o">*</span> <span class="nf">acos</span><span class="p">(</span><span class="nf">sin</span><span class="p">(</span><span class="n">slat2</span><span class="p">)</span><span class="o">*</span><span class="nf">sin</span><span class="p">(</span><span class="n">elat2</span><span class="p">)</span> <span class="o">+</span> <span class="nf">cos</span><span class="p">(</span><span class="n">slat2</span><span class="p">)</span><span class="o">*</span><span class="nf">cos</span><span class="p">(</span><span class="n">elat2</span><span class="p">)</span><span class="o">*</span><span class="nf">cos</span><span class="p">(</span><span class="n">slon2</span> <span class="o">-</span> <span class="n">elon2</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">dist</span>
+
+
+<span class="k">def</span> <span class="nf">parseData</span><span class="p">(</span><span class="n">json_data</span><span class="p">):</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">messages</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">news_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">alert_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">total_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">filtered_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_state</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">No new messages</span><span class="sh">"</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_icon</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">mdi:check-circle-outline</span><span class="sh">"</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">attribution</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">krisinformation.se</span><span class="sh">"</span>
+
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">element</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">json_data</span><span class="p">):</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">filtered_count</span><span class="sh">"</span><span class="p">]</span> <span class="o">=+</span> <span class="mi">1</span>
+        <span class="nf">make_object</span><span class="p">(</span><span class="n">attributes</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">index</span><span class="p">,</span> <span class="n">element</span> <span class="o">=</span> <span class="n">element</span><span class="p">)</span>
+
+        <span class="nf">if </span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">news_count</span><span class="sh">"</span><span class="p">]</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_state</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">attributes</span><span class="p">[</span><span class="sh">'</span><span class="s">news_count</span><span class="sh">'</span><span class="p">]</span><span class="si">}</span><span class="s"> News Messages</span><span class="sh">"</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_icon</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">mdi:alert-circle-outline</span><span class="sh">"</span>
+
+        <span class="nf">if </span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">alert_count</span><span class="sh">"</span><span class="p">]</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_state</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">attributes</span><span class="p">[</span><span class="sh">'</span><span class="s">alert_count</span><span class="sh">'</span><span class="p">]</span><span class="si">}</span><span class="s"> Alert Messages</span><span class="sh">"</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="sh">"</span><span class="s">display_icon</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">mdi:alert-circle</span><span class="sh">"</span>
+
+    <span class="k">return</span> <span class="n">attributes</span>
+
+
+<span class="k">def</span> <span class="nf">updateSensor</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">sensor_name</span><span class="p">,</span> <span class="n">friendly_name</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">.</span><span class="nf">debug</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Fetching data from: </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">json_data</span> <span class="o">=</span> <span class="nf">fetchData</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">json_data</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">state</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="n">sensor_name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="n">log</span><span class="p">.</span><span class="nf">debug</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Got: </span><span class="si">{</span><span class="n">json_data</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">current_state</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">sensor_name</span> <span class="ow">in</span> <span class="n">state</span><span class="p">.</span><span class="nf">names</span><span class="p">(</span><span class="sh">'</span><span class="s">sensor</span><span class="sh">'</span><span class="p">):</span>
+        <span class="n">current_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">sensor_name</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">state</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="n">sensor_name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">attributes</span> <span class="o">=</span> <span class="nf">parseData</span><span class="p">(</span><span class="n">json_data</span><span class="p">)</span>
+    <span class="n">attributes</span><span class="p">[</span><span class="sh">'</span><span class="s">friendly_name</span><span class="sh">'</span><span class="p">]</span> <span class="o">=</span> <span class="n">friendly_name</span>
+
+    <span class="n">new_state</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">attributes</span><span class="p">[</span><span class="sh">'</span><span class="s">total_count</span><span class="sh">'</span><span class="p">]</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="k">if</span> <span class="n">current_state</span> <span class="o">==</span> <span class="n">new_state</span><span class="p">:</span>
+        <span class="n">log</span><span class="p">.</span><span class="nf">debug</span><span class="p">(</span><span class="sa">f</span><span class="sh">'</span><span class="s">State unchanged for: </span><span class="si">{</span><span class="n">sensor_name</span><span class="si">}</span><span class="sh">'</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="n">log</span><span class="p">.</span><span class="nf">info</span><span class="p">(</span><span class="sa">f</span><span class="sh">'</span><span class="s">Updating state: </span><span class="si">{</span><span class="n">sensor_name</span><span class="si">}</span><span class="sh">'</span><span class="p">)</span>
+    <span class="n">state</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="n">sensor_name</span><span class="p">,</span> <span class="n">new_state</span><span class="p">,</span> <span class="n">attributes</span><span class="p">)</span>
+
+
+<span class="nd">@time_trigger</span><span class="p">(</span><span class="sh">"</span><span class="s">cron(*/30 * * * *)</span><span class="sh">"</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">krisinformation_gbg</span><span class="p">():</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="nf">getUrl</span><span class="p">(</span><span class="n">DAYS</span><span class="p">,</span> <span class="n">COUNTY_GOTHENBURG</span><span class="p">)</span>
+    <span class="nf">updateSensor</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="sh">'</span><span class="s">sensor.krisinformation_goteborg</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Krisinformation Göteborg</span><span class="sh">'</span><span class="p">)</span>
+
+
+<span class="nd">@service</span>
+<span class="k">def</span> <span class="nf">krisinformation_testing</span><span class="p">():</span>
+    <span class="nf">krisinformation_gbg</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Lycka till och lycklig pyscript hackande ! :smiley:</p>]]></content><author><name>Björn Sjögren</name></author><category term="home-assistant" /><category term="rest" /><category term="home-assistant" /><category term="pyscript" /><category term="python" /><summary type="html"><![CDATA[Har du känt att att RESTful Sensorn i Home Assistant inte räcker till. Är REST API bakom nån form av inloggningsflöde du behöver gå igenom innan du kan anropa API’et, eller du kanske vill kombinera data från flera REST anrop till en sensor. Du kan alltid skapa din egen kustomiserade integratiom, men det är rätt omstädnigt.]]></summary></entry></feed>

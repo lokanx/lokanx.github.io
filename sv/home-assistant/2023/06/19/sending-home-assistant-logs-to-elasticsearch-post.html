@@ -1,0 +1,591 @@
+<!doctype html>
+<!--
+  Minimal Mistakes Jekyll Theme 4.24.0 by Michael Rose
+  Copyright 2013-2020 Michael Rose - mademistakes.com | @mmistakes
+  Free for personal and commercial use under the MIT license
+  https://github.com/mmistakes/minimal-mistakes/blob/master/LICENSE
+-->
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+
+<!-- begin _includes/seo.html --><title>Sending Home Assistant logs to Elasticsearch (ELK) - A developers thoughts…</title>
+<meta name="description" content="Do you want a better overview of you Home Assiatant logs? Do you want the home assistant logs to be searchable over time? Then you can export then to Elasticsearch and use Kibana for query the log data.">
+
+
+  <meta name="author" content="Björn Sjögren">
+  
+  <meta property="article:author" content="Björn Sjögren">
+  
+
+
+<meta property="og:type" content="article">
+<meta property="og:locale" content="en_US">
+<meta property="og:site_name" content="A developers thoughts...">
+<meta property="og:title" content="Sending Home Assistant logs to Elasticsearch (ELK)">
+<meta property="og:url" content="https://www.lokan.net/home-assistant/2023/06/19/sending-home-assistant-logs-to-elasticsearch-post.html">
+
+
+  <meta property="og:description" content="Do you want a better overview of you Home Assiatant logs? Do you want the home assistant logs to be searchable over time? Then you can export then to Elasticsearch and use Kibana for query the log data.">
+
+
+
+
+
+
+
+  <meta property="article:published_time" content="2023-06-19T16:25:00+00:00">
+
+
+
+  <meta property="article:modified_time" content="2023-06-19T16:25:00+00:00">
+
+
+
+
+<link rel="canonical" href="https://www.lokan.net/sv/home-assistant/2023/06/19/sending-home-assistant-logs-to-elasticsearch-post.html">
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    
+      "@type": "Person",
+      "name": null,
+      "url": "https://www.lokan.net/"
+    
+  }
+</script>
+
+
+
+
+
+
+
+<!-- end _includes/seo.html -->
+
+
+
+  <link href="/sv/feed.xml" type="application/atom+xml" rel="alternate" title="A developers thoughts... Feed">
+
+
+<!-- https://t.co/dKP3o1e -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+  document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/g, '') + ' js ';
+</script>
+
+<!-- For all browsers -->
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5/css/all.min.css"></noscript>
+
+
+
+    <!-- start custom head snippets -->
+
+<!-- insert favicons. use https://realfavicongenerator.net/ -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body class="layout--single wide">
+    <nav class="skip-links">
+  <ul>
+    <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
+    <li><a href="#main" class="screen-reader-shortcut">Skip to content</a></li>
+    <li><a href="#footer" class="screen-reader-shortcut">Skip to footer</a></li>
+  </ul>
+</nav>
+
+    <!--[if lt IE 9]>
+<div class="notice--danger align-center" style="margin: 0;">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+<![endif]-->
+
+    
+<style>
+.greedy-nav .hidden-links div {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 1em;
+}
+</style>
+<div class="masthead">
+   <div class="masthead__inner-wrap">
+      <div class="masthead__menu">
+         <nav id="site-nav" class="greedy-nav">
+            
+            <a class="site-title" href="/sv/">
+               En utvecklares tankar... 
+            </a>
+            <ul class="visible-links"><li class="masthead__menu-item">
+                  <a
+                     href="/sv/"
+                     
+                     >Hem</a
+                  >
+               </li><li class="masthead__menu-item">
+                  <a
+                     href="/sv/blog/"
+                     
+                     >Blog</a
+                  >
+               </li><li class="masthead__menu-item">
+                  <a
+                     href="/sv/apps-archive/"
+                     
+                     >Appl</a
+                  >
+               </li><li class="masthead__menu-item">
+                  <a
+                     href="/sv/about/"
+                     
+                     >Om</a
+                  >
+               </li><li class="masthead__menu-item">
+                  <a
+                     href="/sv/contact/"
+                     
+                     >Kontakt</a
+                  >
+               </li><li class="masthead__menu-item">
+                  <a
+                     href="/sv/sitemap/"
+                     
+                     >Områdeskarta</a
+                  >
+               </li>
+   <li class="masthead__menu-item">
+   
+      
+         <a href=" /"  title="en" style="margin-left: 2px; margin-right: 2px" onClick="localStorage.setItem('site_active_lang', 'en');window.location.href='/';return false;">
+            <img
+               src="/assets/images/lang/en.svg"
+               alt="en"
+               style="width: 32px; max-width: 32px;"
+            />
+         </a>
+      
+
+   
+   </li>
+
+   <li class="masthead__menu-item">
+   
+      <div>
+         <img
+            src="/assets/images/lang/sv.svg"
+            alt="sv"
+            title="sv"
+            style="width: 32px;max-width: 32px; margin-left: 2px; margin-right: 2px"
+         />
+      </div>
+   
+   </li>
+
+</ul>
+            
+            <button class="search__toggle" type="button">
+               <span class="visually-hidden"
+                  >Toggle search</span
+               >
+               <i class="fas fa-search"></i>
+            </button>
+            
+            <button class="greedy-nav__toggle hidden" type="button">
+               <span class="visually-hidden"
+                  >Toggle menu</span
+               >
+               <div class="navicon"></div>
+            </button>
+            <ul class="hidden-links hidden"></ul>
+         </nav>
+      </div>
+   </div>
+</div>
+
+    <div class="initial-content">
+      
+
+
+
+<div id="main" role="main">
+  
+  <div class="sidebar sticky">
+  
+
+
+<div itemscope itemtype="https://schema.org/Person" class="h-card">
+
+  
+
+  <div class="author__content">
+    <h3 class="author__name p-name" itemprop="name">
+      <a class="u-url" rel="me" href="https://www.lokan.net/sv/" itemprop="url">Björn Sjögren</a>
+    </h3>
+    
+      <div class="author__bio p-note" itemprop="description">
+        <p>Den [Sportiga / Hemautomatiserings / Utvecklar] killen</p>
+
+      </div>
+    
+  </div>
+
+  <div class="author__urls-wrapper">
+    <button class="btn btn--inverse">Follow</button>
+    <ul class="author__urls social-icons">
+      
+        <li itemprop="homeLocation" itemscope itemtype="https://schema.org/Place">
+          <i class="fas fa-fw fa-map-marker-alt" aria-hidden="true"></i> <span itemprop="name" class="p-locality">Stockholm/Sverige</span>
+        </li>
+      
+
+      
+        
+          
+            <li><a href="https://twitter.com/lokanx" rel="nofollow noopener noreferrer me" itemprop="sameAs"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i><span class="label">Twitter</span></a></li>
+          
+        
+          
+            <li><a href="https://github.com/lokanx" rel="nofollow noopener noreferrer me" itemprop="sameAs"><i class="fab fa-fw fa-github" aria-hidden="true"></i><span class="label">GitHub</span></a></li>
+          
+        
+          
+            <li><a href="https://www.linkedin.com/in/sjogrenbjorn" rel="nofollow noopener noreferrer me" itemprop="sameAs"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i><span class="label">LinkedIn</span></a></li>
+          
+        
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <!--
+  <li>
+    <a href="http://link-to-whatever-social-network.com/user/" itemprop="sameAs" rel="nofollow noopener noreferrer">
+      <i class="fas fa-fw" aria-hidden="true"></i> Custom Social Profile Link
+    </a>
+  </li>
+-->
+    </ul>
+  </div>
+</div>
+  
+  </div>
+
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="Sending Home Assistant logs to Elasticsearch (ELK)">
+    <meta itemprop="description" content="Do you want a better overview of you Home Assiatant logs? Do you want the home assistant logs to be searchable over time? Then you can export then to Elasticsearch and use Kibana for query the log data.">
+    <meta itemprop="datePublished" content="2023-06-19T16:25:00+00:00">
+    <meta itemprop="dateModified" content="2023-06-19T16:25:00+00:00">
+
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">Sending Home Assistant logs to Elasticsearch (ELK)
+</h1>
+          
+
+
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <p>Do you want a better overview of you <a href="https://www.home-assistant.io">Home Assiatant</a> logs? Do you want the home assistant logs to be searchable over time? Then you can export then to <a href="https://www.elastic.co/elastic-stack">Elasticsearch and use Kibana</a> for query the log data.</p>
+
+<ol>
+  <li>
+    <p>First you need to have an installed ELK stack (Elasticsearch, Logstash and Kibana). I went for an installation using docker with help of <a href="https://github.com/deviantony/docker-elk">docker-elk</a> github project.</p>
+  </li>
+  <li>
+    <p>Second you have to install <a href="https://www.home-assistant.io">Home Assiatant</a> <a href="https://github.com/bertbaron/hassio-addons">Logspout add-on</a>.</p>
+  </li>
+  <li>
+    <p>Configure the logspout add-on</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">routes</span><span class="pi">:</span>
+   <span class="pi">-</span> <span class="s">multiline+logstash+tcp://mykibana.example.com:50000</span>
+<span class="na">env</span><span class="pi">:</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">SYSLOG_HOSTNAME</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">homeassistant</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">INACTIVITY_TIMEOUT</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">1m</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">MULTILINE_PATTERN</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="pi">&gt;-</span>
+        <span class="s">(\d\d(\d\d)?[-/]\d\d[-/]\d\d[T</span>
+        <span class="s">]\d\d:\d\d:\d\d)|(^s6-rc:)|(^\[\d\d:\d\d:\d\d\])|(\d\d:\d\d:\d\d\</span>
+        <span class="s">-)|(^[TDIWEF]:)</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">MULTILINE_MATCH</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">first</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">INCLUDE_CONTAINERS</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">homeassistant</span>
+   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">LOGSTASH_FIELDS</span>
+     <span class="na">value</span><span class="pi">:</span> <span class="s">source=my-home-assistant</span>
+</code></pre></div>    </div>
+
+    <p>Note that default all docker container logs in HAOS is sent to logstash for insertion into elasticsearch.</p>
+  </li>
+  <li>
+    <p>Configure logstash to parse the log data that comes in.
+My logstash.conf file looks like this:</p>
+
+    <div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="n">input</span> {
+   <span class="n">beats</span> {
+      <span class="n">port</span> =&gt; <span class="m">5044</span>
+   }
+
+   <span class="n">tcp</span> {
+      <span class="n">port</span> =&gt; <span class="m">50000</span>
+      <span class="n">codec</span> =&gt; <span class="n">json</span>
+   }
+
+   <span class="n">udp</span> {
+      <span class="n">port</span>  =&gt; <span class="m">5000</span>
+      <span class="n">codec</span> =&gt; <span class="n">json</span>
+   }
+}
+
+<span class="c">## Add your filters / logstash plugins configuration here
+</span><span class="n">filter</span> {
+      <span class="n">if</span> ([<span class="n">source</span>] == <span class="s2">"my-home-assistant"</span>) {
+         <span class="n">if</span> ([<span class="n">docker</span>][<span class="n">name</span>] == <span class="s2">"/homeassistant"</span>) {
+            <span class="n">grok</span> {
+               <span class="n">patterns_dir</span> =&gt; [<span class="s2">"/usr/share/logstash/pipeline/patterns"</span>]
+               <span class="n">match</span> =&gt; { <span class="s2">"message"</span> =&gt; <span class="s2">"%{LOGLEVEL:log_level}%{SPACE}\(%{GREEDYDATA:log_thread}\)%{SPACE}\[%{LOGGER_NAME:log_name}\]%{SPACE}%{GREEDYDATA:log_message}"</span> }
+            }
+            <span class="n">mutate</span> {
+      <span class="n">gsub</span> =&gt; [ <span class="s2">"log_message"</span>, <span class="s2">"\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|M|K]"</span>, <span class="s2">""</span> ]
+            }
+            <span class="n">if</span> [<span class="n">log_message</span>] =~ /\<span class="n">n</span>/ {
+               <span class="n">mutate</span> {
+                  <span class="n">copy</span> =&gt; { <span class="s2">"log_message"</span> =&gt; <span class="s2">"log_trace"</span> }
+               }
+               <span class="n">mutate</span> {
+                  <span class="n">gsub</span> =&gt; [ <span class="s2">"log_message"</span>, <span class="s2">"(?m)^([^\n]*)$.*"</span>, <span class="s2">"\1"</span> ]
+               }
+
+            }
+         } <span class="n">else</span> {
+            <span class="n">drop</span> { }
+         }
+      }
+}
+
+<span class="n">output</span> {
+   <span class="n">elasticsearch</span> {
+      <span class="n">hosts</span> =&gt; <span class="s2">"elasticsearch:9200"</span>
+      <span class="n">user</span> =&gt; <span class="s2">"logstash_internal"</span>
+      <span class="n">password</span> =&gt; <span class="s2">"${LOGSTASH_INTERNAL_PASSWORD}"</span>
+   }
+}
+</code></pre></div>    </div>
+
+    <p>and my custom patterns file looks like this:</p>
+
+    <div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">LOGGER_NAME</span> [<span class="n">a</span>-<span class="n">zA</span>-<span class="n">Z0</span>-<span class="m">9</span>.<span class="err">_</span>-]+
+<span class="n">UNICODE_START</span> [\\<span class="n">u</span>]
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>All incomming data tagged with <em>my-home-assistant</em> will be processed by the filter. It will also drop all data that comes from other than the HAOS home assistant docker container.</p>
+
+<p>If you want to properly process data from other docker containers in the HAOS install, you will have to write more <a href="https://www.elastic.co/guide/en/logstash/current/plugins-filters-grok.html">grok</a> patterns.</p>
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+  
+
+
+  
+
+  <p class="page__taxonomy">
+    <strong><i class="fas fa-fw fa-tags" aria-hidden="true"></i> Tags: </strong>
+    <span itemprop="keywords">
+    
+      <a href="/sv/tags/#elasticsearch" class="page__taxonomy-item" rel="tag">elasticsearch</a><span class="sep">, </span>
+    
+      <a href="/sv/tags/#elk" class="page__taxonomy-item" rel="tag">ELK</a><span class="sep">, </span>
+    
+      <a href="/sv/tags/#home-assistant" class="page__taxonomy-item" rel="tag">home-assistant</a><span class="sep">, </span>
+    
+      <a href="/sv/tags/#kibana" class="page__taxonomy-item" rel="tag">kibana</a><span class="sep">, </span>
+    
+      <a href="/sv/tags/#logstash" class="page__taxonomy-item" rel="tag">logstash</a>
+    
+    </span>
+  </p>
+
+
+
+
+  
+
+
+  
+
+  <p class="page__taxonomy">
+    <strong><i class="fas fa-fw fa-folder-open" aria-hidden="true"></i> Categories: </strong>
+    <span itemprop="keywords">
+    
+      <a href="/sv/categories/#home-assistant" class="page__taxonomy-item" rel="tag">home-assistant</a>
+    
+    </span>
+  </p>
+
+
+        
+
+  <p class="page__date"><strong><i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i> Updated:</strong> <time datetime="2023-06-19">June 19, 2023</time></p>
+
+
+      </footer>
+
+      
+
+      
+  <nav class="pagination">
+    
+      <a href="/sv/home-assistant/2023/06/19/home-assistant-creating-rest-sensors-using-pyscript-post.html" class="pagination--pager" title="Skapa en REST baserad sensor för Home Assistant med hjälp an pyscript integrationen
+">Previous</a>
+    
+    
+      <a href="/sv/frontend/2023/06/19/use-react-query-for-async-logic.html" class="pagination--pager" title="Using react-query for all kind of async logic
+">Next</a>
+    
+  </nav>
+
+    </div>
+
+    
+  </article>
+
+  
+  
+</div>
+
+    </div>
+
+    
+      <div class="search-content">
+        <div class="search-content__inner-wrap"><form class="search-content__form" onkeydown="return event.key != 'Enter';">
+    <label class="sr-only" for="search">
+      Enter your search term...
+    </label>
+    <input type="search" id="search" class="search-input" tabindex="-1" placeholder="Enter your search term..." />
+  </form>
+  <div id="results" class="results"></div></div>
+
+      </div>
+    
+
+    <div id="footer" class="page__footer">
+      <footer>
+        <!-- start custom footer snippets -->
+
+<!-- end custom footer snippets -->
+        <div class="page__footer-follow">
+  <ul class="social-icons">
+    
+
+    
+      
+        
+          <li><a href="https://twitter.com/lokanx" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i> Twitter</a></li>
+        
+      
+        
+          <li><a href="https://github.com/lokanx" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-github" aria-hidden="true"></i> GitHub</a></li>
+        
+      
+        
+          <li><a href="https://www.linkedin.com/in/sjogrenbjorn" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i> LinkedIn</a></li>
+        
+      
+    
+
+    
+      <li><a href="/sv/feed.xml"><i class="fas fa-fw fa-rss-square" aria-hidden="true"></i> Feed</a></li>
+    
+  </ul>
+</div>
+
+<div class="page__footer-copyright">&copy; 2023 En utvecklares tankar.... Powered by <a href="https://jekyllrb.com" rel="nofollow">Jekyll</a> &amp; <a href="https://mademistakes.com/work/minimal-mistakes-jekyll-theme/" rel="nofollow">Minimal Mistakes</a>.</div>
+      </footer>
+    </div>
+
+    
+  <script src="/assets/js/main.min.js"></script>
+
+
+
+
+<script src="/assets/js/lunr/lunr.min.js"></script>
+<script src="/assets/js/lunr/lunr-store.js"></script>
+<script src="/assets/js/lunr/lunr-en.js"></script>
+
+
+
+
+
+
+
+  </body>
+</html>
