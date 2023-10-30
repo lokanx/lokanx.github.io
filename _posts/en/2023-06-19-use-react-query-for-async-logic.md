@@ -1,7 +1,7 @@
 ---
 title: "Using react-query for all kind of async logic"
 date: 2023-06-19T22:00:00+0200
-last_modified_at: 2023-06-19T22:00:00+02:00
+last_modified_at: 2023-10-30T14:40:00+02:00
 layout: single
 lang: en
 categories:
@@ -76,37 +76,37 @@ import { useMutation } from "@tanstack/react-query";
 import SpeechService, { SpeakParams } from "../services/SpeechService";
 
 interface UseSpeakParams {
-   onSuccess?: () => void;
-   onError?: (error: Error) => void;
+    onSuccess?: () => void;
+    onError?: (error: Error) => void;
 }
 
 const performSpeak = async (params: SpeakParams) => {
-   try {
-      return await SpeechService.speak(params);
-   } catch (error: any) {
-      throw error;
-   }
+    try {
+        return await SpeechService.speak(params);
+    } catch (error: any) {
+        throw error;
+    }
 };
 
-export const useSpeak = ({
-   onSuccess = () => {},
-   onError = () => {},
-}: UseSpeakParams) => {
-   const mutator = useMutation(performSpeak, {
-      onSuccess: () => {
-         onSuccess();
-      },
-      onError: (error: Error) => {
-         onError(error);
-      },
-      retry: false,
-   });
+export const useSpeak = ({onSuccess = () => {},
+                          onError = () => {},
+                         }: UseSpeakParams) => {
+    const mutator = useMutation({mutationFn: performSpeak,
+        onSuccess: () => {
+            onSuccess();
+        },
+        onError: (error: Error) => {
+            onError(error);
+        },
+        retry: false,
+    });
 
-   return [
-      mutator.mutate,
-      { isSaving: mutator.isLoading, ...mutator },
-   ] as const;
+    return [
+        mutator.mutate,
+        { isSaving: mutator.isPending, ...mutator },
+    ] as const;
 };
+
 ```
 
 And finally lets put the useSpeak hook into work in a react component.
@@ -126,13 +126,20 @@ export const SayHelloComponent = () => {
    const [voiceData, setVoiceData] = React.useState<
       SpeechSynthesisVoiceData | undefined
    >();
-   const [availableVoices] = useVoices();
+    const [availableVoices, {isUseVoicesError, useVoicesError}] = useVoices();
 
-   const [speak] = useSpeak({
+
+    const [speak] = useSpeak({
       onError: (error: Error) => {
          console.error("Failed speak:", error);
       },
    });
+
+   React.useEffect(() => {
+      if (isUseVoicesError && useVoicesError) {
+         console.log("Failed detect voices", useVoicesError);
+      }
+   }, [isUseVoicesError, useVoicesError]);
 
    const speech = () => {
       if (voiceData) {
